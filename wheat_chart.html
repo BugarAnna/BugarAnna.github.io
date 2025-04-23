@@ -1,0 +1,1482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wheat Prices Chart</title>
+    
+    <!-- Load fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+    
+    <!-- Load Chart.js and plugins -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom/dist/chartjs-plugin-zoom.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8"></script>
+    
+    <style>
+        .chart-wrapper {
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 20px;
+            background: white;
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            height: 500px;
+            margin: 0;
+            display: flex;
+            overflow: hidden; /* Prevent expansion beyond bounds */
+        }
+        .chart-area {
+            flex: 1;
+            position: relative;
+            margin-right: 180px; /* Leave space for legend */
+            overflow: hidden; /* Prevent expansion beyond bounds */
+        }
+        .logo-container {
+            position: absolute;
+            bottom: 50px;
+            right: 140px;
+            z-index: 10;
+            background: rgba(255, 255, 255, 0.0);
+            padding: 10px;
+            border-radius: 4px;
+            width: 144px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .logo-container img {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+        .data-table-container {
+            margin-top: 20px;
+            overflow-x: auto;
+            width: 100%;
+            position: relative;
+            z-index: 9999;
+        }
+        .date-selector {
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-family: 'Inter', sans-serif;
+            color: #112f56;
+            position: relative;
+            z-index: 9999;
+        }
+        .date-selector label {
+            font-size: 14px;
+            font-weight: 500;
+        }
+        .date-selector input {
+            font-family: 'Inter', sans-serif;
+            font-size: 14px;
+            color: #112f56;
+            padding: 6px 12px;
+            border: 1px solid #42afa5;
+            border-radius: 4px;
+            cursor: pointer;
+            z-index: 9999;
+        }
+        .date-selector input::-webkit-calendar-picker-indicator {
+            cursor: pointer;
+        }
+        /* Force calendar to open downward */
+        .date-selector {
+            position: relative;
+        }
+        input[type="date"]::-webkit-calendar-picker-indicator {
+            position: relative;
+            z-index: 1;
+        }
+        input[type="date"]::-webkit-calendar-picker {
+            position: absolute;
+            top: 100%;
+            left: 0;
+        }
+        input[type="date"]::-webkit-inner-spin-button {
+            display: none;
+        }
+        input[type="date"]::-webkit-clear-button {
+            display: none;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-family: 'Inter', sans-serif;
+            font-size: 12px;
+            color: #112f56;
+        }
+        th, td {
+            padding: 8px;
+            text-align: right;
+            border: 1px solid #e0e0e0;
+        }
+        th {
+            background-color: #f5f5f5;
+            font-weight: 500;
+        }
+        tr:nth-child(3) {
+            background-color: rgba(66, 175, 165, 0.1);
+        }
+        td:first-child {
+            font-weight: 500;
+            text-align: left;
+        }
+        canvas#wheatChart {
+            position: relative;
+            z-index: 1;
+            cursor: grab;
+            width: 100% !important;
+            height: 100% !important;
+        }
+        canvas#wheatChart:active {
+            cursor: grabbing;
+        }
+        .controls {
+            text-align: left;
+            margin: 10px 0;
+            font-family: 'Inter', sans-serif;
+            color: #112f56;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            justify-content: space-between;
+        }
+        .controls-left {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        .controls-right {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        .last-updated {
+            font-family: 'Inter', sans-serif;
+            font-size: 12px;
+            color: #112f56;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            margin-top: -10px;
+        }
+        .last-updated-date {
+            font-weight: 500;
+        }
+        .zoom-info {
+            font-style: italic;
+            font-size: 12px;
+        }
+        .mobile-zoom-info {
+            display: none;
+            font-style: italic;
+            font-size: 12px;
+            color: #112f56;
+            text-align: center;
+            margin: 5px 0;
+            font-family: 'Inter', sans-serif;
+        }
+        .reset-zoom {
+            font-family: 'Inter', sans-serif;
+            padding: 4px 12px;
+            background-color: #42afa5;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .reset-zoom:hover {
+            background-color: #3a9d94;
+        }
+        .time-range-controls {
+            position: absolute;
+            top: 45px;
+            left: 65px;
+            z-index: 2;
+            display: flex;
+            gap: 8px;
+            padding: 8px;
+            background: rgba(255, 255, 255, 0.7);
+            border-radius: 4px;
+        }
+        .time-range-btn {
+            font-family: 'Inter', sans-serif;
+            padding: 6px 12px;
+            background-color: white;
+            color: #112f56;
+            border: 1px solid #42afa5;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s ease;
+        }
+        .time-range-btn:hover {
+            background-color: #42afa5;
+            color: white;
+        }
+        .time-range-btn.active {
+            background-color: #42afa5;
+            color: white;
+        }
+        .date-picker {
+            font-family: 'Inter', sans-serif;
+            font-size: 12px;
+            color: #112f56;
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            width: 100%;
+        }
+        .date-picker::-webkit-calendar-picker-indicator {
+            cursor: pointer;
+        }
+        tr:nth-child(3) td:first-child {
+            padding: 0;
+        }
+        .no-data {
+            color: #999;
+            font-style: italic;
+        }
+        .chartjs-legend-container {
+            position: absolute;
+            right: 10px;
+            top: 10px;
+            padding: 15px;
+            border-radius: 4px;
+            z-index: 20;
+            pointer-events: all;
+        }
+        .legend-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding: 10px 15px;
+            margin-top: 380px;
+            margin-right: 10px;
+            border-top: 1px solid rgba(0, 0, 0, 0.1);
+            align-items: flex-end;
+            white-space: nowrap;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 4px;
+        }
+        .chartjs-legend-item {
+            cursor: pointer !important;
+            transition: all 0.2s ease;
+            padding: 4px 8px !important;
+            border-radius: 4px;
+            display: flex !important;
+            align-items: center;
+            gap: 8px;
+            pointer-events: all;
+        }
+        .chartjs-legend-item:hover {
+            background-color: rgba(66, 175, 165, 0.1);
+        }
+        .chartjs-legend-item[hidden] {
+            opacity: 0.5;
+        }
+        .chartjs-legend-item[hidden] span:last-child {
+            text-decoration: line-through;
+        }
+        .chartjs-legend-title {
+            cursor: help;
+            margin-bottom: 8px !important;
+        }
+        .legend-control-btn {
+            font-family: 'Inter', sans-serif;
+            padding: 4px 12px;
+            background-color: white;
+            color: #112f56;
+            border: 1px solid #42afa5;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s ease;
+            width: 100px;
+            white-space: nowrap;
+            text-align: center;
+        }
+        .legend-control-btn:hover {
+            background-color: #42afa5;
+            color: white;
+        }
+        @media screen and (max-width: 768px) {
+            .chart-container {
+                height: auto;  /* Let it grow based on content */
+                flex-direction: column;
+                margin-bottom: 15px;
+                max-height: 550px; /* Limit maximum height */
+            }
+            
+            .chart-area {
+                margin-right: 0;
+                height: 350px;
+                max-height: 350px; /* Enforce maximum height */
+                min-height: 300px; /* Ensure minimum height */
+            }
+            
+            canvas#wheatChart {
+                max-height: 350px !important; /* Constrain canvas height */
+            }
+            
+            .custom-legend {
+                position: relative !important;
+                width: 100% !important;
+                padding: 10px !important;
+                margin-top: 10px;
+                height: auto !important;
+                display: flex !important;
+                flex-direction: column !important;
+                justify-content: flex-start !important;
+            }
+            
+            .custom-legend > div {
+                display: flex !important;
+                flex-direction: column !important;
+                max-height: none !important;
+                width: 100% !important;
+            }
+            
+            .custom-legend-title {
+                padding-top: 0 !important;
+                text-align: center !important;
+                margin-bottom: 10px !important;
+            }
+            
+            .custom-legend ul {
+                margin-bottom: 15px !important;
+            }
+            
+            .custom-legend-controls {
+                margin-top: 5px !important;
+                margin-bottom: 5px !important;
+                padding-top: 10px !important;
+                width: 100% !important;
+                display: flex !important;
+                flex-direction: row !important;
+                justify-content: space-between !important;
+                gap: 10px !important;
+            }
+            
+            .custom-legend-controls button {
+                flex: 1 !important;
+                font-size: 11px !important;
+                padding: 6px 8px !important;
+            }
+            
+            /* Show mobile info and hide desktop zoom info */
+            .zoom-info {
+                display: none;
+            }
+            
+            .mobile-zoom-info {
+                display: block;
+                clear: both;
+                margin-top: 15px;
+                margin-bottom: 15px;
+                text-align: center;
+            }
+            
+            /* Move time range controls below chart */
+            .time-range-controls {
+                position: static;
+                margin: 10px 0;
+                padding: 5px;
+                display: flex;
+                justify-content: center;
+                flex-wrap: wrap;
+                background: none;
+                width: 100%;
+                float: none;
+            }
+            
+            .time-range-controls button {
+                margin: 2px;
+            }
+            
+            /* Stack controls vertically and position lower */
+            .controls {
+                flex-direction: column;
+                gap: 10px;
+                clear: both;
+                margin-top: 20px;
+            }
+            
+            /* Position mobile zoom info just above controls */
+            .controls .mobile-zoom-info {
+                order: -1;
+                margin-bottom: 15px;
+            }
+            
+            /* Improve data table for mobile */
+            .data-table-container {
+                margin-top: 30px;
+                overflow-x: auto;
+            }
+            
+            /* Make date selector more mobile-friendly */
+            .date-selector {
+                flex-direction: column;
+                align-items: stretch;
+                margin-bottom: 15px;
+            }
+            
+            .date-selector label {
+                margin-bottom: 5px;
+            }
+            
+            /* Adjust table for mobile */
+            table {
+                font-size: 11px;
+                width: 100%;
+                min-width: 600px; /* Ensure horizontal scrolling for small screens */
+            }
+            
+            th, td {
+                padding: 6px 4px;
+            }
+        }
+        
+        @media screen and (max-width: 480px) {
+            .chart-area {
+                height: 300px;
+            }
+            
+            /* Smaller buttons */
+            .time-range-btn {
+                padding: 4px 8px;
+                font-size: 11px;
+            }
+            
+            /* Ensure legend items are readable */
+            .custom-legend-item {
+                padding: 6px 8px !important;
+            }
+            
+            /* Better spacing for the data table */
+            .data-table-container {
+                margin-top: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="chart-wrapper">
+        <div class="chart-container">
+            <div class="chart-area">
+                <div class="time-range-controls">
+                    <button class="time-range-btn" data-days="14">2W</button>
+                    <button class="time-range-btn" data-days="30">1M</button>
+                    <button class="time-range-btn" data-days="90">3M</button>
+                    <button class="time-range-btn" data-days="180">6M</button>
+                    <button class="time-range-btn" data-days="365">1Y</button>
+                    <button class="time-range-btn" data-days="730">2Y</button>
+                </div>
+                <canvas id="wheatChart"></canvas>
+            </div>
+        </div>
+        <div class="controls">
+            <div class="mobile-zoom-info">Note: Dynamic zooming is available on desktop/laptop. On mobile, you can drag to pan the chart.</div>
+            <div class="controls-left">
+                <div class="zoom-info">Click and drag to pan, use mouse wheel to zoom in/out</div>
+                <button class="reset-zoom">Reset View</button>
+            </div>
+            <div class="controls-right">
+                <div class="last-updated">
+                    <span>Last updated:</span>
+                    <span class="last-updated-date">Loading...</span>
+                </div>
+            </div>
+        </div>
+        <div class="data-table-container">
+            <div class="date-selector">
+                <label for="datePicker">Select Date:</label>
+                <input type="date" id="datePicker">
+            </div>
+            <table id="dataTable">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td></td></tr>
+                    <tr><td></td></tr>
+                    <tr><td></td></tr>
+                    <tr><td></td></tr>
+                    <tr><td></td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        let chartInstance;
+        let allData = {};  // Store all data points
+        
+        async function createChart() {
+            // Register the zoom plugin
+            Chart.register(ChartZoom);
+            
+            // Fetch the data
+            const response = await fetch('Wheat_Prices_JSON_Long.json');
+            const data = await response.json();
+            console.log('Loaded data points:', data.length);
+            
+            // Get the chart configuration
+            const configResponse = await fetch('WHEAT_Chart_chartjs.json');
+            const config = await configResponse.json();
+            
+            // Modify the config to ensure proper sizing
+            config.options = {
+                ...config.options,
+                maintainAspectRatio: false,
+                responsive: true,
+                plugins: {
+                    ...config.options.plugins,
+                    legend: {
+                        ...config.options.plugins.legend,
+                        position: 'right',
+                        align: 'start'
+                    },
+                    tooltip: {
+                        mode: 'nearest',
+                        axis: 'x',
+                        intersect: false
+                    }
+                },
+                layout: {
+                    padding: {
+                        bottom: 10
+                    }
+                },
+                aspectRatio: window.innerWidth < 768 ? 1.5 : 2
+            };
+            
+            // Process the data for Chart.js format
+            const processedData = processData(data);
+            config.data.datasets = config.data.datasets.map((dataset, index) => ({
+                ...dataset,
+                data: processedData[dataset.label] || [],
+                pointRadius: 0,  // Hide points by default
+                pointHoverRadius: 4,  // Size of point when hovering
+                pointBackgroundColor: dataset.borderColor,  // Match point color to line color
+                pointBorderColor: 'white',
+                pointBorderWidth: 1,
+                tension: 0.4,    // Make lines smooth
+                borderWidth: 2.5,   // Slightly thicker lines for better visibility
+                spanGaps: true,     // Connect lines across missing data points
+                segment: {
+                    borderDash: ctx => getSegmentStyle(ctx, dataset.label)
+                }
+            }));
+
+            // Function to determine if a segment should be dashed (for gaps in data)
+            function getSegmentStyle(ctx, datasetLabel) {
+                if (!ctx.p0.skip && !ctx.p1.skip) {
+                    // If both points exist, use a solid line
+                    return undefined;
+                }
+                // Otherwise use a dashed line to indicate missing data
+                return [6, 6];
+            }
+
+            // Enhance legend configuration
+            config.options.plugins.legend = {
+                ...config.options.plugins.legend,
+                position: 'right',
+                title: {
+                    display: true,
+                    text: ['Click on any origin', 'to show or hide'],
+                    font: {
+                        family: 'Public Sans',
+                        size: 14,
+                        weight: '600'
+                    },
+                    color: '#112f56',
+                    padding: { top: 40, bottom: 15 }
+                },
+                labels: {
+                    font: {
+                        family: 'Inter',
+                        size: 13
+                    },
+                    color: '#112f56',
+                    usePointStyle: true,
+                    pointStyle: 'circle',
+                    padding: 15,
+                    boxWidth: 10,
+                    boxHeight: 10,
+                    generateLabels: (chart) => {
+                        const originalLabels = Chart.defaults.plugins.legend.labels.generateLabels(chart);
+                        return originalLabels.map(label => ({
+                            ...label,
+                            text: `${label.hidden ? '☐' : '☑'} ${label.text}`
+                        }));
+                    }
+                },
+                onHover: null,
+                onLeave: null
+            };
+
+            // Add CSS for legend interactivity
+            const style = document.createElement('style');
+            style.textContent = `
+                .chartjs-legend-item {
+                    cursor: pointer !important;
+                    transition: all 0.2s ease;
+                    padding: 4px 8px !important;
+                    border-radius: 4px;
+                    display: flex !important;
+                    align-items: center;
+                    gap: 8px;
+                }
+                .chartjs-legend-item:hover {
+                    background-color: rgba(66, 175, 165, 0.1);
+                }
+                .chartjs-legend-item[hidden] {
+                    opacity: 0.5;
+                }
+                .chartjs-legend-item[hidden] span:last-child {
+                    text-decoration: line-through;
+                }
+                .chartjs-legend-title {
+                    cursor: help;
+                    margin-bottom: 8px !important;
+                }
+            `;
+            document.head.appendChild(style);
+
+            // Add tooltip to legend title
+            const addTooltipToTitle = () => {
+                const legendTitle = document.querySelector('.chartjs-legend-title');
+                if (legendTitle && !legendTitle.hasAttribute('data-tooltip-added')) {
+                    legendTitle.title = 'Click on any origin to show or hide';
+                    legendTitle.setAttribute('data-tooltip-added', 'true');
+                }
+            };
+
+            // Observer for legend title
+            const observer = new MutationObserver((mutations) => {
+                addTooltipToTitle();
+            });
+            
+            observer.observe(document.body, { childList: true, subtree: true });
+
+            // Add throttle function for performance
+            function throttle(func, limit) {
+                let inThrottle;
+                return function(...args) {
+                    if (!inThrottle) {
+                        func.apply(this, args);
+                        inThrottle = true;
+                        setTimeout(() => inThrottle = false, limit);
+                    }
+                };
+            }
+
+            // Calculate min and max dates from data
+            let minDate = new Date();
+            let maxDate = new Date(0);
+            Object.values(processedData).forEach(dataset => {
+                dataset.forEach(point => {
+                    const date = new Date(point.x);
+                    if (date < minDate) minDate = date;
+                    if (date > maxDate) maxDate = date;
+                });
+            });
+
+            const today = new Date();
+            maxDate = today < maxDate ? today : maxDate;
+
+            // Update last updated date
+            const lastUpdatedDate = new Date(maxDate).toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric'
+            });
+            document.querySelector('.last-updated-date').textContent = lastUpdatedDate;
+
+            // Set the x-axis scale limits
+            config.options.scales.x.min = minDate;
+            config.options.scales.x.max = maxDate;
+
+            // Set zoom and pan limits
+            config.options.plugins.zoom = {
+                pan: {
+                    enabled: true,
+                    mode: 'x',
+                    threshold: 5,
+                    modifierKey: null,
+                    speed: 10,
+                    rangeMin: {
+                        x: minDate
+                    },
+                    rangeMax: {
+                        x: maxDate
+                    }
+                },
+                limits: {
+                    x: {
+                        min: minDate,
+                        max: maxDate,
+                        minRange: 24 * 60 * 60 * 1000 // Minimum 1 day range
+                    }
+                },
+                zoom: {
+                    wheel: {
+                        enabled: true,
+                        speed: 0.1
+                    },
+                    pinch: {
+                        enabled: true,
+                        speed: 0.1,  // Control pinch zoom speed
+                        threshold: 5  // Lower threshold for easier activation
+                    },
+                    mode: 'x'
+                }
+            };
+
+            // Optimize rendering
+            config.options.animation = {
+                duration: 0 // Disable animations for better performance
+            };
+            
+            config.options.responsive = true;
+            config.options.maintainAspectRatio = false;
+            config.options.interaction = {
+                mode: 'nearest',
+                axis: 'x',
+                intersect: false
+            };
+
+            // Add debounced update for smoother data table updates
+            const debouncedUpdateDataTable = throttle((date) => {
+                updateDataTable(date);
+            }, 100);
+
+            // Add background pattern plugin
+            const patternImage = new Image();
+            patternImage.src = 'Pattern-Background-with-WHITE-Black-Silo.svg';
+            
+            const logoImage = new Image();
+            logoImage.src = 'cropped-BS-Black.png';
+            
+            patternImage.onerror = () => {
+                console.error('Failed to load pattern background image');
+            };
+
+            logoImage.onerror = (e) => {
+                console.error('Failed to load logo image:', e);
+            };
+
+            const backgroundPlugin = {
+                id: 'custom_canvas_background_image',
+                beforeDraw: (chart) => {
+                    const ctx = chart.ctx;
+                    const {chartArea} = chart;
+                    
+                    // Draw pattern background
+                    if (patternImage.complete && patternImage.naturalWidth !== 0) {
+                        ctx.save();
+                        ctx.beginPath();
+                        ctx.rect(chartArea.left, chartArea.top, chartArea.width, chartArea.height);
+                        ctx.clip();
+                        
+                        const pattern = ctx.createPattern(patternImage, 'repeat');
+                        if (pattern) {
+                            ctx.fillStyle = pattern;
+                            ctx.fillRect(chartArea.left, chartArea.top, chartArea.width, chartArea.height);
+                        }
+                        ctx.restore();
+                    }
+                }
+            };
+
+            const logoPlugin = {
+                id: 'logo_plugin',
+                afterDatasetsDraw: (chart) => {
+                    const ctx = chart.ctx;
+                    const {chartArea} = chart;
+                    
+                    // Draw logo if loaded successfully
+                    if (logoImage.complete && logoImage.naturalWidth !== 0) {
+                        const logoWidth = 144; // Same size as before
+                        const logoHeight = (logoImage.height / logoImage.width) * logoWidth;
+                        const xAxisY = chart.scales.y.bottom;
+                        
+                        ctx.save();
+                        // Position logo above x-axis, relative to chart area
+                        const x = chartArea.right - logoWidth - 10; // Same position from right as before
+                        const y = xAxisY - logoHeight - 10; // 20px above x-axis
+                        
+                        ctx.drawImage(logoImage, x, y, logoWidth, logoHeight);
+                        ctx.restore();
+                    }
+                }
+            };
+
+            // Add crosshair plugin
+            const crosshairPlugin = {
+                id: 'crosshair',
+                afterDraw: (chart) => {
+                    const { ctx, chartArea, tooltip } = chart;
+                    if (tooltip._active && tooltip._active.length) {
+                        const activePoint = tooltip._active[0];
+                        const x = activePoint.element.x;
+                        const topY = chartArea.top;
+                        const bottomY = chartArea.bottom;
+
+                        // Draw vertical crosshair line
+                        ctx.save();
+                        ctx.beginPath();
+                        ctx.moveTo(x, topY);
+                        ctx.lineTo(x, bottomY);
+                        ctx.lineWidth = 1;
+                        ctx.strokeStyle = 'rgba(81, 87, 89, 0.6)';
+                        ctx.stroke();
+                        
+                        // Draw slightly larger points for all active datasets at this x-position
+                        const pointRadius = 5;
+                        chart.data.datasets.forEach((dataset, i) => {
+                            if (dataset.hidden) return;
+                            
+                            // Find the data point at this x position
+                            const datasetMeta = chart.getDatasetMeta(i);
+                            if (!datasetMeta.hidden) {
+                                // Find the nearest point to the crosshair x position
+                                let nearestPointIndex = -1;
+                                let minDistance = Infinity;
+                                
+                                datasetMeta.data.forEach((element, index) => {
+                                    const distance = Math.abs(element.x - x);
+                                    if (distance < minDistance) {
+                                        minDistance = distance;
+                                        nearestPointIndex = index;
+                                    }
+                                });
+                                
+                                if (nearestPointIndex !== -1) {
+                                    const element = datasetMeta.data[nearestPointIndex];
+                                    const dataPoint = dataset.data[nearestPointIndex];
+                                    
+                                    // Only draw points for visible data (not null/undefined)
+                                    if (dataPoint.y !== null && dataPoint.y !== undefined) {
+                                        ctx.beginPath();
+                                        ctx.arc(element.x, element.y, pointRadius, 0, 2 * Math.PI);
+                                        ctx.fillStyle = dataset.borderColor;
+                                        ctx.fill();
+                                        ctx.strokeStyle = 'white';
+                                        ctx.lineWidth = 1.5;
+                                        ctx.stroke();
+                                    }
+                                }
+                            }
+                        });
+                        
+                        ctx.restore();
+                    }
+                }
+            };
+
+            // Create the chart
+            const ctx = document.getElementById('wheatChart').getContext('2d');
+            
+            chartInstance = new Chart(ctx, {
+                ...config,
+                plugins: [backgroundPlugin, crosshairPlugin, logoPlugin],
+                options: {
+                    ...config.options,
+                    plugins: {
+                        ...config.options.plugins,
+                        legend: {
+                            display: false, // Disable built-in legend
+                        }
+                    },
+                    maintainAspectRatio: false,
+                    responsive: true,
+                    onResize: (chart, size) => {
+                        // Force height constraint on mobile
+                        if (window.innerWidth <= 768) {
+                            const canvas = chart.canvas;
+                            const chartArea = document.querySelector('.chart-area');
+                            if (chartArea && canvas) {
+                                canvas.style.height = '350px';
+                                chartArea.style.height = '350px';
+                            }
+                        }
+                    }
+                }
+            });
+            
+            // Create custom legend
+            function createCustomLegend() {
+                const chartContainer = document.querySelector('.chart-container');
+                
+                // Create legend container
+                const legendContainer = document.createElement('div');
+                legendContainer.className = 'custom-legend';
+                legendContainer.style.cssText = `
+                    position: absolute;
+                    top: 0;
+                    right: 0;
+                    bottom: 0;
+                    padding: 10px;
+                    z-index: 100;
+                    pointer-events: all;
+                    width: 160px;
+                    display: flex;
+                    flex-direction: column;
+                    justify-content: space-between;
+                `;
+                
+                // Create main content container
+                const mainContent = document.createElement('div');
+                mainContent.style.cssText = `
+                    flex: 1;
+                    overflow-y: auto;
+                    display: flex;
+                    flex-direction: column;
+                `;
+                
+                // Create legend title
+                const legendTitle = document.createElement('div');
+                legendTitle.className = 'custom-legend-title';
+                legendTitle.textContent = 'Click on any origin to show or hide';
+                legendTitle.style.cssText = `
+                    font-family: 'Public Sans', sans-serif;
+                    font-size: 14px;
+                    font-weight: 600;
+                    color: #112f56;
+                    margin-bottom: 10px;
+                    text-align: center;
+                    padding-top: 30px;
+                    padding-bottom: 5px;
+                `;
+                mainContent.appendChild(legendTitle);
+                
+                // Create legend items
+                const legendList = document.createElement('ul');
+                legendList.style.cssText = `
+                    list-style: none;
+                    padding: 0;
+                    margin: 0;
+                    flex: 1;
+                    overflow-y: auto;
+                    max-height: 320px;
+                `;
+                
+                chartInstance.data.datasets.forEach((dataset, index) => {
+                    const item = document.createElement('li');
+                    item.className = 'custom-legend-item';
+                    item.dataset.index = index;
+                    item.style.cssText = `
+                        display: flex;
+                        align-items: center;
+                        gap: 6px;
+                        padding: 5px 7px;
+                        margin-bottom: 2px;
+                        border-radius: 4px;
+                        cursor: pointer;
+                        font-family: 'Inter', sans-serif;
+                        font-size: 13px;
+                        color: #112f56;
+                        transition: all 0.2s ease;
+                    `;
+                    
+                    item.innerHTML = `
+                        <span style="
+                            display: inline-block;
+                            width: 12px;
+                            height: 12px;
+                            border-radius: 50%;
+                            background-color: ${dataset.borderColor};
+                            flex-shrink: 0;
+                        "></span>
+                        <span class="checkbox" style="font-size: 12px; flex-shrink: 0;">${dataset.hidden ? '☐' : '☑'}</span>
+                        <span style="overflow: hidden; text-overflow: ellipsis;">${dataset.label}</span>
+                    `;
+                    
+                    item.addEventListener('mouseover', () => {
+                        if (!dataset.hidden) {
+                            item.style.backgroundColor = 'rgba(66, 175, 165, 0.1)';
+                        }
+                    });
+                    
+                    item.addEventListener('mouseout', () => {
+                        item.style.backgroundColor = 'transparent';
+                    });
+                    
+                    item.addEventListener('click', () => {
+                        console.log('Custom legend item clicked:', dataset.label);
+                        
+                        // Toggle dataset visibility
+                        dataset.hidden = !dataset.hidden;
+                        
+                        // Update checkbox
+                        item.querySelector('.checkbox').textContent = dataset.hidden ? '☐' : '☑';
+                        
+                        if (dataset.hidden) {
+                            item.style.opacity = '0.5';
+                            item.style.backgroundColor = 'transparent';
+                        } else {
+                            item.style.opacity = '1';
+                        }
+                        
+                        // Update chart
+                        chartInstance.update();
+                    });
+                    
+                    if (dataset.hidden) {
+                        item.style.opacity = '0.5';
+                    }
+                    
+                    legendList.appendChild(item);
+                });
+                
+                mainContent.appendChild(legendList);
+                legendContainer.appendChild(mainContent);
+                
+                // Add controls
+                const controlsContainer = document.createElement('div');
+                controlsContainer.className = 'custom-legend-controls';
+                controlsContainer.style.cssText = `
+                    display: flex;
+                    flex-direction: column;
+                    gap: 6px;
+                    margin-top: 10px;
+                    margin-bottom: 17px;
+                    padding-top: 10px;
+                    border-top: 1px solid rgba(0, 0, 0, 0.1);
+                    text-align: center;
+                `;
+                
+                const selectAllBtn = document.createElement('button');
+                selectAllBtn.textContent = 'Select All';
+                selectAllBtn.className = 'legend-control-btn';
+                selectAllBtn.style.cssText = `
+                    font-family: 'Inter', sans-serif;
+                    padding: 4px 8px;
+                    background-color: white;
+                    color: #112f56;
+                    border: 1px solid #42afa5;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    font-size: 12px;
+                    transition: all 0.2s ease;
+                    width: 100%;
+                    white-space: nowrap;
+                    text-align: center;
+                `;
+                
+                selectAllBtn.addEventListener('mouseover', () => {
+                    selectAllBtn.style.backgroundColor = '#42afa5';
+                    selectAllBtn.style.color = 'white';
+                });
+                
+                selectAllBtn.addEventListener('mouseout', () => {
+                    selectAllBtn.style.backgroundColor = 'white';
+                    selectAllBtn.style.color = '#112f56';
+                });
+                
+                selectAllBtn.addEventListener('click', () => {
+                    chartInstance.data.datasets.forEach(dataset => {
+                        dataset.hidden = false;
+                    });
+                    
+                    document.querySelectorAll('.custom-legend-item').forEach(item => {
+                        item.style.opacity = '1';
+                        item.querySelector('.checkbox').textContent = '☑';
+                    });
+                    
+                    chartInstance.update();
+                });
+                
+                const unselectAllBtn = document.createElement('button');
+                unselectAllBtn.textContent = 'Unselect All';
+                unselectAllBtn.className = 'legend-control-btn';
+                unselectAllBtn.style.cssText = `
+                    font-family: 'Inter', sans-serif;
+                    padding: 4px 8px;
+                    background-color: white;
+                    color: #112f56;
+                    border: 1px solid #42afa5;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    font-size: 11px;
+                    transition: all 0.2s ease;
+                    width: 100%;
+                    white-space: nowrap;
+                    text-align: center;
+                `;
+                
+                unselectAllBtn.addEventListener('mouseover', () => {
+                    unselectAllBtn.style.backgroundColor = '#42afa5';
+                    unselectAllBtn.style.color = 'white';
+                });
+                
+                unselectAllBtn.addEventListener('mouseout', () => {
+                    unselectAllBtn.style.backgroundColor = 'white';
+                    unselectAllBtn.style.color = '#112f56';
+                });
+                
+                unselectAllBtn.addEventListener('click', () => {
+                    chartInstance.data.datasets.forEach(dataset => {
+                        dataset.hidden = true;
+                    });
+                    
+                    document.querySelectorAll('.custom-legend-item').forEach(item => {
+                        item.style.opacity = '0.5';
+                        item.querySelector('.checkbox').textContent = '☐';
+                    });
+                    
+                    chartInstance.update();
+                });
+                
+                controlsContainer.appendChild(selectAllBtn);
+                controlsContainer.appendChild(unselectAllBtn);
+                legendContainer.appendChild(controlsContainer);
+                
+                // Add to chart container
+                chartContainer.appendChild(legendContainer);
+                
+                // Remove old legend controls if they exist
+                const oldLegendControls = document.querySelector('.legend-controls');
+                if (oldLegendControls) {
+                    oldLegendControls.remove();
+                }
+            }
+            
+            // Call the function after chart is created
+            createCustomLegend();
+            
+            // Manually initialize Hammer.js for more reliable panning
+            const chartCanvas = document.getElementById('wheatChart');
+            const mc = new Hammer.Manager(chartCanvas);
+            const pan = new Hammer.Pan({ direction: Hammer.DIRECTION_HORIZONTAL, threshold: 5 });
+            mc.add(pan);
+            
+            let startX = 0;
+            let startMin = 0;
+            let startMax = 0;
+            
+            mc.on('panstart', function(e) {
+                startX = e.center.x;
+                startMin = chartInstance.scales.x.min;
+                startMax = chartInstance.scales.x.max;
+                chartCanvas.style.cursor = 'grabbing';
+            });
+            
+            mc.on('pan', function(e) {
+                // Calculate the time difference based on the drag distance
+                const chartArea = chartInstance.chartArea;
+                const pixelRange = chartArea.right - chartArea.left;
+                const timeRange = startMax - startMin;
+                const pixelsPerMs = pixelRange / timeRange;
+                
+                const deltaX = startX - e.center.x;
+                const deltaMs = deltaX / pixelsPerMs;
+                
+                // Update the chart scale
+                chartInstance.scales.x.options.min = startMin + deltaMs;
+                chartInstance.scales.x.options.max = startMax + deltaMs;
+                chartInstance.update();
+            });
+            
+            mc.on('panend', function() {
+                chartCanvas.style.cursor = 'grab';
+            });
+
+            // Add mousemove event handler to update table
+            chartInstance.canvas.addEventListener('mousemove', throttle((event) => {
+                // Use 'nearest' mode with 'x' axis to get the closest point along the x-axis
+                const points = chartInstance.getElementsAtEventForMode(
+                    event, 
+                    'nearest', 
+                    { 
+                        axis: 'x',
+                        intersect: false,
+                        includeInvisible: false
+                    }, 
+                    false // Don't use index mode, get nearest point in each dataset
+                );
+                
+                if (points.length) {
+                    // Just use the first point to get the date for the data table
+                    const activePoint = points[0];
+                    const date = chartInstance.data.datasets[activePoint.datasetIndex].data[activePoint.index].x;
+                    debouncedUpdateDataTable(date);
+                }
+            }, 50));
+
+            // Add wheel event for zooming
+            chartCanvas.addEventListener('wheel', function(e) {
+                e.preventDefault(); // Prevent page scrolling
+                
+                const wheelDelta = e.deltaY;
+                const chart = chartInstance;
+                const chartArea = chart.chartArea;
+                
+                // Calculate the mouse position relative to the chart area
+                const rect = chartCanvas.getBoundingClientRect();
+                const mouseX = e.clientX - rect.left;
+                const mousePosition = (mouseX - chartArea.left) / (chartArea.right - chartArea.left);
+                
+                // Calculate the current time range
+                const min = chart.scales.x.min;
+                const max = chart.scales.x.max;
+                const range = max - min;
+                
+                // Calculate zoom factor (smaller value = slower zoom)
+                const zoomFactor = 0.1;
+                const zoomAmount = wheelDelta > 0 ? (1 + zoomFactor) : (1 - zoomFactor);
+                
+                // Calculate new range and maintain the mouse position as the zoom center
+                const newRange = range * zoomAmount;
+                const centerPoint = min + range * mousePosition;
+                
+                // Calculate new min and max values, keeping the mouse position fixed
+                const newMin = centerPoint - newRange * mousePosition;
+                const newMax = centerPoint + newRange * (1 - mousePosition);
+                
+                // Apply minimum range constraint
+                const minRange = 24 * 60 * 60 * 1000; // 1 day in milliseconds
+                if (newMax - newMin < minRange) {
+                    return;
+                }
+                
+                // Apply bounds constraints
+                let constrainedMin = Math.max(newMin, minDate.getTime());
+                let constrainedMax = Math.min(newMax, maxDate.getTime());
+                
+                if (constrainedMax - constrainedMin < minRange) {
+                    if (wheelDelta > 0) { // Zooming in
+                        // If zooming in too much, don't zoom further
+                        return;
+                    } else { // Zooming out
+                        // If at the edge, adjust to maintain minRange
+                        if (constrainedMin <= minDate.getTime()) {
+                            constrainedMax = constrainedMin + minRange;
+                        } else if (constrainedMax >= maxDate.getTime()) {
+                            constrainedMin = constrainedMax - minRange;
+                        }
+                    }
+                }
+                
+                // Update chart scale
+                chart.scales.x.options.min = constrainedMin;
+                chart.scales.x.options.max = constrainedMax;
+                chart.update();
+            }, { passive: false });
+
+            // Clear table when mouse leaves chart
+            chartInstance.canvas.addEventListener('mouseout', () => {
+                const tbody = document.getElementById('dataTable').querySelector('tbody');
+                tbody.querySelectorAll('tr').forEach(row => {
+                    const cells = row.querySelectorAll('td');
+                    cells.forEach(cell => cell.textContent = '');
+                });
+            });
+
+            // Add reset zoom button functionality
+            document.querySelector('.reset-zoom').addEventListener('click', () => {
+                // Reset to original min and max dates
+                chartInstance.scales.x.options.min = minDate;
+                chartInstance.scales.x.options.max = maxDate;
+                chartInstance.update();
+                chartInstance.isZoomedOrPanned = false;
+                document.querySelectorAll('.time-range-btn').forEach(btn => btn.classList.remove('active'));
+            });
+
+            // Add time range buttons functionality
+            document.querySelectorAll('.time-range-btn').forEach(button => {
+                button.addEventListener('click', () => {
+                    const days = parseInt(button.dataset.days);
+                    const now = new Date();
+                    const start = new Date(now);
+                    start.setDate(start.getDate() - days);
+                    
+                    // Remove active class from all buttons
+                    document.querySelectorAll('.time-range-btn').forEach(btn => btn.classList.remove('active'));
+                    // Add active class to clicked button
+                    button.classList.add('active');
+                    
+                    // Update chart scale directly
+                    chartInstance.scales.x.options.min = start.getTime();
+                    chartInstance.scales.x.options.max = now.getTime();
+                    chartInstance.update();
+                });
+            });
+
+            // Setup date picker
+            const datePicker = document.getElementById('datePicker');
+            const allDates = Object.keys(allData).sort();
+            datePicker.min = allDates[0];
+            datePicker.max = allDates[allDates.length - 1];
+            
+            // Set default date to two days before the last date
+            const lastDateIndex = allDates.length - 1;
+            const defaultDateIndex = Math.max(0, lastDateIndex - 2);
+            datePicker.value = allDates[defaultDateIndex];
+            
+            datePicker.addEventListener('change', (e) => {
+                const selectedDate = new Date(e.target.value);
+                // Update chart view to center on selected date
+                const chart = Chart.getChart('wheatChart');
+                const currentMin = chart.scales.x.min;
+                const currentMax = chart.scales.x.max;
+                const range = currentMax - currentMin;
+                
+                // Set new range centered on selected date
+                chart.scales.x.options.min = selectedDate.getTime() - range/2;
+                chart.scales.x.options.max = selectedDate.getTime() + range/2;
+                chart.update();
+                
+                // Update table
+                updateDataTable(selectedDate);
+            });
+
+            // Initial table update
+            updateDataTable(new Date(datePicker.value));
+        }
+
+        function processData(data) {
+            const result = {};
+            const origins = ["2SRW", "US White", "HRW 11", "HRW 12", "HRS 13.5", 
+                           "Argentine 12", "APW", "ASW", "French 11.5", "German 12.5", 
+                           "Black Sea Milling"];
+            
+            // Create a map of all dates and their data
+            allData = {};
+            data.forEach(item => {
+                const date = new Date(item.Date).toISOString().split('T')[0];
+                if (!allData[date]) {
+                    allData[date] = {};
+                }
+                // Ensure we only store valid numeric prices
+                if (item.Price !== null && item.Price !== undefined && !isNaN(item.Price)) {
+                    allData[date][item.Origin] = item.Price;
+                }
+            });
+            
+            origins.forEach(origin => {
+                // Get all data points for this origin
+                const originData = data
+                    .filter(item => item.Origin === origin && item.Price !== null && item.Price !== undefined && !isNaN(item.Price))
+                    .map(item => ({
+                        x: new Date(item.Date),
+                        y: item.Price
+                    }))
+                    .sort((a, b) => a.x - b.x);
+                
+                result[origin] = originData;
+            });
+            
+            return result;
+        }
+
+        function updateDataTable(activeDate) {
+            console.log('Updating table for date:', activeDate);
+            const table = document.getElementById('dataTable');
+            const thead = table.querySelector('thead tr');
+            const tbody = table.querySelector('tbody');
+            const origins = ["2SRW", "US White", "HRW 11", "HRW 12", "HRS 13.5", 
+                           "Argentine 12", "APW", "ASW", "French 11.5", "German 12.5", 
+                           "Black Sea Milling"];
+            
+            // Set headers if not already set
+            if (thead.children.length === 1) {
+                console.log('Setting up headers');
+                origins.forEach(origin => {
+                    const th = document.createElement('th');
+                    th.textContent = origin;
+                    thead.appendChild(th);
+                });
+            }
+
+            // Get all dates and sort them
+            const allDates = Object.keys(allData).sort();
+            const activeDateStr = activeDate.toISOString().split('T')[0];
+            console.log('Active date:', activeDateStr);
+            console.log('Available dates:', allDates.length);
+            const activeIndex = allDates.indexOf(activeDateStr);
+            console.log('Active index:', activeIndex);
+            
+            if (activeIndex === -1) {
+                console.log('Date not found in data');
+                return;
+            }
+
+            // Get 2 dates before and 2 dates after
+            const startIndex = Math.max(0, activeIndex - 2);
+            const endIndex = Math.min(allDates.length - 1, activeIndex + 2);
+            const displayDates = allDates.slice(startIndex, endIndex + 1);
+            console.log('Display dates:', displayDates);
+
+            // Update table rows
+            for (let i = 0; i < 5; i++) {
+                const row = tbody.children[i];
+                // Clear existing cells
+                while (row.firstChild) {
+                    row.removeChild(row.firstChild);
+                }
+                
+                if (i < displayDates.length) {
+                    const date = displayDates[i];
+                    // Add date cell
+                    const dateCell = document.createElement('td');
+                    dateCell.textContent = date;
+                    row.appendChild(dateCell);
+                    
+                    // Add price cells
+                    origins.forEach(origin => {
+                        const td = document.createElement('td');
+                        const price = allData[date]?.[origin];
+                        td.textContent = price !== undefined && price !== null ? price.toFixed(2) : 'N/A';
+                        if (price === undefined || price === null) {
+                            td.classList.add('no-data');
+                        }
+                        row.appendChild(td);
+                    });
+                } else {
+                    // Fill empty row
+                    const dateCell = document.createElement('td');
+                    row.appendChild(dateCell);
+                    origins.forEach(() => {
+                        const td = document.createElement('td');
+                        row.appendChild(td);
+                    });
+                }
+            }
+        }
+
+        // Initialize the chart when the page loads
+        document.addEventListener('DOMContentLoaded', createChart);
+
+        // Add window resize listener to maintain chart dimensions
+        window.addEventListener('resize', () => {
+            if (chartInstance) {
+                if (window.innerWidth <= 768) {
+                    const canvas = chartInstance.canvas;
+                    const chartArea = document.querySelector('.chart-area');
+                    if (chartArea && canvas) {
+                        // Set fixed height on mobile
+                        canvas.style.height = '350px';
+                        chartArea.style.height = '350px';
+                        chartInstance.resize();
+                    }
+                }
+            }
+        });
+    </script>
+</body>
+</html> 

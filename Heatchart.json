@@ -1,0 +1,110 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+  "title": {
+    "text": "Wheat Prices Heatmap by Origin",
+    "font": "Public Sans",
+    "fontSize": 20,
+    "color": "#112f56"
+  },
+  "data": {
+    "url": "Wheat_Prices_CSV.csv"
+  },
+  "width": 1000,
+  "height": 400,
+  "background": "white",
+  "transform": [
+    {"filter": "isValid(datum.Price)"},
+    {"filter": "year(datum.Date) >= 2020"}
+  ],
+  "mark": "rect",
+  "encoding": {
+    "x": {
+      "timeUnit": "yearmonthdate",
+      "field": "Date",
+      "type": "temporal",
+      "title": "Time",
+      "axis": {
+        "format": "%Y",
+        "labelAngle": 0,
+        "labelOverlap": false,
+        "labelFont": "Inter",
+        "titleFont": "Public Sans",
+        "labelColor": {
+          "condition": {
+            "test": {
+              "timeUnit": "monthdate",
+              "field": "value",
+              "equal": {"month": 1, "date": 1}
+            },
+            "value": "#112f56"
+          },
+          "value": null
+        },
+        "tickColor": {
+          "condition": {
+            "test": {
+              "timeUnit": "monthdate",
+              "field": "value",
+              "equal": {"month": 1, "date": 1}
+            },
+            "value": "#112f56"
+          },
+          "value": null
+        },
+        "titleColor": "#112f56"
+      }
+    },
+    "y": {
+      "field": "Origin",
+      "type": "nominal",
+      "title": null,
+      "axis": {
+        "labelFont": "Inter",
+        "labelColor": "#112f56"
+      }
+    },
+    "color": {
+      "field": "Price",
+      "type": "quantitative",
+      "title": "Price (US$/Mt)",
+      "scale": {
+        "range": ["#a1e6e9", "#42afa5", "#d0dd2a", "#f6bc2e", "#f4797c", "#97107e"]
+      },
+      "legend": {
+        "labelFont": "Inter",
+        "titleFont": "Public Sans",
+        "labelColor": "#112f56",
+        "titleColor": "#112f56"
+      }
+    },
+    "tooltip": [
+      {"field": "Date", "type": "temporal", "title": "Date", "format": "%Y-%m-%d"},
+      {"field": "Origin", "type": "nominal", "title": "Origin"},
+      {"field": "Price", "type": "quantitative", "title": "Price", "format": ".2f"},
+      {"field": "Country", "type": "nominal", "title": "Country"},
+      {"field": "Location", "type": "nominal", "title": "Location"}
+    ]
+  },
+  "config": {
+    "axis": {
+      "labelFontSize": 12,
+      "titleFontSize": 14,
+      "labelFont": "Inter",
+      "titleFont": "Public Sans"
+    },
+    "legend": {
+      "labelFontSize": 12,
+      "titleFontSize": 14,
+      "labelFont": "Inter",
+      "titleFont": "Public Sans"
+    },
+    "title": {
+      "font": "Public Sans",
+      "fontSize": 20,
+      "color": "#112f56"
+    },
+    "view": {
+      "stroke": null
+    }
+  }
+} 

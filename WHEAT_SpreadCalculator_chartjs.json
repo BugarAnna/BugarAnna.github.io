@@ -1,0 +1,140 @@
+{
+  "type": "line",
+  "data": {
+    "datasets": [
+      {
+        "label": "Base Origin",
+        "borderColor": "#42afa5",
+        "backgroundColor": "#42afa5",
+        "fill": false,
+        "tension": 0.4,
+        "borderWidth": 2
+      },
+      {
+        "label": "Comparison Origin",
+        "borderColor": "#f6bc2e",
+        "backgroundColor": "#f6bc2e",
+        "fill": false,
+        "tension": 0.4,
+        "borderWidth": 2
+      },
+      {
+        "label": "Price Spread",
+        "borderColor": "#112f56",
+        "backgroundColor": "rgba(17, 47, 86, 0.1)",
+        "fill": true,
+        "tension": 0.4,
+        "borderWidth": 2,
+        "hidden": true
+      }
+    ]
+  },
+  "options": {
+    "responsive": true,
+    "maintainAspectRatio": true,
+    "plugins": {
+      "zoom": {
+        "pan": {
+          "enabled": true,
+          "mode": "x",
+          "modifierKey": null
+        },
+        "zoom": {
+          "wheel": {
+            "enabled": true,
+            "speed": 0.1
+          },
+          "pinch": {
+            "enabled": true
+          },
+          "mode": "x",
+          "drag": {
+            "enabled": false
+          }
+        },
+        "limits": {
+          "x": {
+            "minRange": 604800000,
+            "max": "auto",
+            "min": "auto"
+          }
+        }
+      },
+      "title": {
+        "display": true,
+        "text": "Wheat Price Spread Calculator",
+        "font": {
+          "family": "Public Sans",
+          "size": 20
+        },
+        "color": "#112f56"
+      },
+      "legend": {
+        "display": true,
+        "position": "top",
+        "labels": {
+          "font": {
+            "family": "Inter",
+            "size": 12
+          },
+          "color": "#112f56"
+        }
+      },
+      "tooltip": {
+        "mode": "index",
+        "intersect": false,
+        "titleFont": {
+          "family": "Public Sans"
+        },
+        "bodyFont": {
+          "family": "Inter"
+        }
+      }
+    },
+    "scales": {
+      "x": {
+        "type": "time",
+        "time": {
+          "displayFormats": {
+            "day": "yyyy-MM-dd"
+          },
+          "tooltipFormat": "yyyy-MM-dd"
+        },
+        "title": {
+          "display": true,
+          "text": "Date",
+          "font": {
+            "family": "Inter",
+            "size": 14
+          },
+          "color": "#112f56"
+        },
+        "ticks": {
+          "font": {
+            "family": "Inter",
+            "size": 12
+          },
+          "color": "#112f56"
+        }
+      },
+      "y": {
+        "title": {
+          "display": true,
+          "text": "Price (US$/Mt)",
+          "font": {
+            "family": "Inter",
+            "size": 14
+          },
+          "color": "#112f56"
+        },
+        "ticks": {
+          "font": {
+            "family": "Inter",
+            "size": 12
+          },
+          "color": "#112f56"
+        }
+      }
+    }
+  }
+} 

@@ -1,0 +1,838 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wheat Price Spread Calculator</title>
+    <!-- Import Chart.js and plugins -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.3.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
+    <!-- Date adapter for proper time scale -->
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <!-- Load the fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter&family=Public+Sans&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #f9f9f9;
+        }
+        
+        h1 {
+            font-family: 'Public Sans', sans-serif;
+            font-size: 24px;
+            color: #112f56;
+            margin-bottom: 10px;
+        }
+        
+        .controls {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 20px;
+            gap: 15px;
+            width: 100%;
+        }
+        
+        .selector {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        
+        label {
+            font-family: 'Public Sans', sans-serif;
+            font-size: 14px;
+            color: #112f56;
+        }
+        
+        select {
+            padding: 8px 12px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-family: 'Inter', sans-serif;
+            font-size: 14px;
+            min-width: 180px;
+        }
+        
+        button {
+            padding: 8px 16px;
+            background-color: #112f56;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: 'Public Sans', sans-serif;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        button:hover {
+            background-color: #1a4580;
+        }
+        
+        .chart-container {
+            width: 1000px;
+            height: 500px;
+            padding: 20px;
+            background-color: white;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            border-radius: 5px;
+            margin-bottom: 20px;
+            position: relative;
+        }
+        
+        .chart-logo {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            width: 120px;
+            opacity: 0.7;
+            z-index: 10;
+            pointer-events: none;
+        }
+        
+        .spread-info {
+            font-family: 'Public Sans', sans-serif;
+            font-size: 16px;
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #f0f4f8;
+            border-radius: 4px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <h1>Wheat Price Spread Calculator</h1>
+    
+    <div class="controls">
+        <div class="selector">
+            <label for="origin1">Base Origin:</label>
+            <select id="origin1">
+                <option value="">Select wheat origin</option>
+            </select>
+        </div>
+        
+        <div class="selector">
+            <label for="origin2">Comparison Origin:</label>
+            <select id="origin2">
+                <option value="">Select wheat origin</option>
+            </select>
+        </div>
+        
+        <button id="calculateBtn">Calculate Spread</button>
+        <button id="resetZoomBtn">Reset Zoom</button>
+    </div>
+    
+    <div class="spread-info" id="spreadInfo">
+        Select two wheat origins to calculate price spread
+    </div>
+    
+    <div class="chart-container">
+        <canvas id="priceChart"></canvas>
+        <img src="cropped-BS-Black.png" class="chart-logo" alt="BlackSilo">
+    </div>
+    
+    <div class="chart-container">
+        <canvas id="spreadChart"></canvas>
+        <img src="cropped-BS-Black.png" class="chart-logo" alt="BlackSilo">
+    </div>
+
+    <script>
+        let priceChart, spreadChart;
+        let wheatData = [];
+        let origins = [];
+        
+        document.addEventListener('DOMContentLoaded', async function() {
+            try {
+                // Fetch the JSON data from the actual data file
+                const response = await fetch('Wheat_Prices_JSON.json');
+                wheatData = await response.json();
+                
+                // Get unique origins
+                origins = [...new Set(wheatData.map(item => item.Origin))].sort();
+                
+                // Populate dropdowns
+                const origin1Select = document.getElementById('origin1');
+                const origin2Select = document.getElementById('origin2');
+                
+                origins.forEach(origin => {
+                    origin1Select.innerHTML += `<option value="${origin}">${origin}</option>`;
+                    origin2Select.innerHTML += `<option value="${origin}">${origin}</option>`;
+                });
+                
+                // Set default selections if possible
+                if (origins.length >= 2) {
+                    origin1Select.value = origins[0];
+                    origin2Select.value = origins[1];
+                }
+                
+                // Initialize charts
+                initializeCharts();
+                
+                // Add event listeners
+                document.getElementById('calculateBtn').addEventListener('click', calculateSpread);
+                document.getElementById('resetZoomBtn').addEventListener('click', resetZoom);
+                
+                // Calculate initial spread if both origins are selected
+                if (origin1Select.value && origin2Select.value) {
+                    calculateSpread();
+                }
+            } catch (error) {
+                console.error("Error loading data:", error);
+                document.getElementById('spreadInfo').textContent = "Error loading data. Please check if Wheat_Prices_JSON.json exists.";
+                
+                // Fall back to sample data if the file doesn't exist
+                fallbackToSampleData();
+            }
+        });
+        
+        // Fallback function to use sample data if the JSON file is not found
+        function fallbackToSampleData() {
+            console.log("Falling back to sample data");
+            
+            try {
+                // Create sample data
+                const today = new Date();
+                wheatData = generateSampleData(today, 365);
+                
+                // Get unique origins
+                origins = ["2SRW", "US White", "HRW 11", "HRW 12", "HRS 13.5", "Argentine 12", 
+                          "APW", "ASW", "French 11.5", "German 12.5", "Black Sea Milling"];
+                
+                // Populate dropdowns
+                const origin1Select = document.getElementById('origin1');
+                const origin2Select = document.getElementById('origin2');
+                
+                // Clear existing options
+                origin1Select.innerHTML = '<option value="">Select wheat origin</option>';
+                origin2Select.innerHTML = '<option value="">Select wheat origin</option>';
+                
+                origins.forEach(origin => {
+                    origin1Select.innerHTML += `<option value="${origin}">${origin}</option>`;
+                    origin2Select.innerHTML += `<option value="${origin}">${origin}</option>`;
+                });
+                
+                // Set default selections
+                if (origins.length >= 2) {
+                    origin1Select.value = origins[0];
+                    origin2Select.value = origins[1];
+                }
+                
+                // Initialize charts
+                initializeCharts();
+                
+                // Calculate initial spread
+                calculateSpread();
+                
+                document.getElementById('spreadInfo').textContent = "Using sample data (Wheat_Prices_JSON.json not found)";
+            } catch (error) {
+                console.error("Error creating sample data:", error);
+                document.getElementById('spreadInfo').textContent = "Error creating sample data.";
+            }
+        }
+        
+        function initializeCharts() {
+            const priceCtx = document.getElementById('priceChart').getContext('2d');
+            const spreadCtx = document.getElementById('spreadChart').getContext('2d');
+            
+            // Initialize price chart
+            priceChart = new Chart(priceCtx, {
+                type: 'line',
+                data: {
+                    datasets: []
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        zoom: {
+                            pan: {
+                                enabled: true,
+                                mode: 'x',
+                            },
+                            zoom: {
+                                wheel: {
+                                    enabled: true,
+                                    speed: 0.1
+                                },
+                                pinch: {
+                                    enabled: true
+                                },
+                                mode: 'x',
+                            },
+                            limits: {
+                                x: {
+                                    minRange: 86400000 * 7, // One week minimum
+                                    min: 'original',
+                                    max: 'original'
+                                }
+                            }
+                        },
+                        title: {
+                            display: true,
+                            text: 'Wheat FOB Prices Comparison',
+                            font: {
+                                family: 'Public Sans',
+                                size: 18
+                            },
+                            color: '#112f56'
+                        },
+                        legend: {
+                            display: true,
+                            position: 'top',
+                            labels: {
+                                font: {
+                                    family: 'Inter',
+                                    size: 12
+                                },
+                                color: '#112f56'
+                            }
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                            titleFont: {
+                                family: 'Public Sans'
+                            },
+                            bodyFont: {
+                                family: 'Inter'
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: {
+                                displayFormats: {
+                                    day: 'yyyy-MM-dd'
+                                },
+                                tooltipFormat: 'yyyy-MM-dd'
+                            },
+                            title: {
+                                display: true,
+                                text: 'Date',
+                                font: {
+                                    family: 'Inter',
+                                    size: 14
+                                },
+                                color: '#112f56'
+                            },
+                            ticks: {
+                                font: {
+                                    family: 'Inter',
+                                    size: 12
+                                },
+                                color: '#112f56'
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'Price (US$/Mt)',
+                                font: {
+                                    family: 'Inter',
+                                    size: 14
+                                },
+                                color: '#112f56'
+                            },
+                            ticks: {
+                                font: {
+                                    family: 'Inter',
+                                    size: 12
+                                },
+                                color: '#112f56'
+                            }
+                        }
+                    }
+                }
+            });
+            
+            // Initialize spread chart
+            spreadChart = new Chart(spreadCtx, {
+                type: 'line',
+                data: {
+                    datasets: [{
+                        label: 'Price Spread',
+                        borderColor: '#112f56',
+                        backgroundColor: 'rgba(17, 47, 86, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        zoom: {
+                            pan: {
+                                enabled: true,
+                                mode: 'x',
+                            },
+                            zoom: {
+                                wheel: {
+                                    enabled: true,
+                                    speed: 0.1
+                                },
+                                pinch: {
+                                    enabled: true
+                                },
+                                mode: 'x',
+                            },
+                            limits: {
+                                x: {
+                                    minRange: 86400000 * 7, // One week minimum
+                                    min: 'original',
+                                    max: 'original'
+                                }
+                            }
+                        },
+                        title: {
+                            display: true,
+                            text: 'Price Spread Between Origins',
+                            font: {
+                                family: 'Public Sans',
+                                size: 18
+                            },
+                            color: '#112f56'
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                            titleFont: {
+                                family: 'Public Sans'
+                            },
+                            bodyFont: {
+                                family: 'Inter'
+                            },
+                            callbacks: {
+                                label: function(context) {
+                                    return `Spread: ${context.parsed.y.toFixed(2)} US$/Mt`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: {
+                                displayFormats: {
+                                    day: 'yyyy-MM-dd'
+                                },
+                                tooltipFormat: 'yyyy-MM-dd'
+                            },
+                            title: {
+                                display: true,
+                                text: 'Date',
+                                font: {
+                                    family: 'Inter',
+                                    size: 14
+                                },
+                                color: '#112f56'
+                            },
+                            ticks: {
+                                font: {
+                                    family: 'Inter',
+                                    size: 12
+                                },
+                                color: '#112f56'
+                            }
+                            },
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'Spread (US$/Mt)',
+                                font: {
+                                    family: 'Inter',
+                                    size: 14
+                                },
+                                color: '#112f56'
+                        },
+                            ticks: {
+                                font: {
+                                    family: 'Inter',
+                                    size: 12
+                                },
+                                color: '#112f56'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        function calculateSpread() {
+            const origin1 = document.getElementById('origin1').value;
+            const origin2 = document.getElementById('origin2').value;
+            
+            if (!origin1 || !origin2) {
+                document.getElementById('spreadInfo').textContent = "Please select two wheat origins to calculate spread";
+                return;
+            }
+            
+            if (origin1 === origin2) {
+                document.getElementById('spreadInfo').textContent = "Please select two different origins for comparison";
+                return;
+            }
+            
+            // Filter data for the selected origins
+            const origin1Data = wheatData.filter(item => item.Origin === origin1);
+            const origin2Data = wheatData.filter(item => item.Origin === origin2);
+            
+            // Get unique dates from both origins
+            const allDates = [...new Set([...origin1Data.map(item => item.Date), ...origin2Data.map(item => item.Date)])].sort();
+            
+            // Prepare data for the price chart
+            const priceData1 = [];
+            const priceData2 = [];
+            const spreadData = [];
+            
+            // Find color for each origin
+            const getOriginColor = (origin) => {
+                const colors = {
+                    "2SRW": "#42afa5",
+                    "US White": "#f6bc2e",
+                    "HRW 11": "#d0dd2a",
+                    "HRW 12": "#a1e6e9",
+                    "HRS 13.5": "#f4797c",
+                    "Argentine 12": "#88bc1c",
+                    "APW": "#27843a",
+                    "ASW": "#97107e",
+                    "French 11.5": "#112f56",
+                    "German 12.5": "#c1942a",
+                    "Black Sea Milling": "#bf6162"
+                };
+                
+                return colors[origin] || "#000000";
+            };
+            
+            // For each date, find the prices and calculate the spread
+            allDates.forEach(date => {
+                const origin1Item = origin1Data.find(item => item.Date === date);
+                const origin2Item = origin2Data.find(item => item.Date === date);
+                
+                if (origin1Item && origin2Item) {
+                    const price1 = origin1Item.Price;
+                    const price2 = origin2Item.Price;
+                    const spread = price1 - price2;
+                    
+                    priceData1.push({
+                        x: new Date(date),
+                        y: price1
+                    });
+                    
+                    priceData2.push({
+                        x: new Date(date),
+                        y: price2
+                    });
+                    
+                    spreadData.push({
+                        x: new Date(date),
+                        y: spread
+                    });
+                }
+            });
+            
+            // Update price chart
+            priceChart.data.datasets = [
+                {
+                    label: origin1,
+                    data: priceData1,
+                    borderColor: getOriginColor(origin1),
+                    backgroundColor: getOriginColor(origin1),
+                    fill: false,
+                    tension: 0.4,
+                    borderWidth: 2
+                },
+                {
+                    label: origin2,
+                    data: priceData2,
+                    borderColor: getOriginColor(origin2),
+                    backgroundColor: getOriginColor(origin2),
+                    fill: false,
+                    tension: 0.4,
+                    borderWidth: 2
+                }
+            ];
+            
+            // Update spread chart
+            spreadChart.data.datasets[0].data = spreadData;
+            spreadChart.data.datasets[0].label = `${origin1} - ${origin2} Spread`;
+            
+            // Calculate average spread
+            const avgSpread = spreadData.reduce((sum, point) => sum + point.y, 0) / spreadData.length;
+            const latestSpread = spreadData.length > 0 ? spreadData[spreadData.length - 1].y : 0;
+            
+            // Update info
+            document.getElementById('spreadInfo').innerHTML = `
+                <strong>${origin1} - ${origin2} Spread:</strong> 
+                Latest: ${latestSpread.toFixed(2)} US$/Mt | 
+                Average: ${avgSpread.toFixed(2)} US$/Mt | 
+                Data points: ${spreadData.length}
+            `;
+            
+            // Update charts
+            priceChart.update();
+            spreadChart.update();
+        }
+        
+        function resetZoom() {
+            if (priceChart) {
+                priceChart.resetZoom();
+            }
+            if (spreadChart) {
+                spreadChart.resetZoom();
+            }
+            
+            // Show notification
+            const spreadInfo = document.getElementById('spreadInfo');
+            const originalText = spreadInfo.innerHTML;
+            spreadInfo.innerHTML += ' <span style="color:#27843a">(Zoom reset)</span>';
+            
+            // Remove notification after 2 seconds
+            setTimeout(() => {
+                spreadInfo.innerHTML = originalText;
+            }, 2000);
+        }
+
+        // Function to generate sample data with realistic market patterns
+        function generateSampleData(endDate, days) {
+            const data = [];
+            const origins = ["2SRW", "US White", "HRW 11", "HRW 12", "HRS 13.5", "Argentine 12", 
+                           "APW", "ASW", "French 11.5", "German 12.5", "Black Sea Milling"];
+            
+            // Use at least 365 days of data for better zoom experience
+            days = Math.max(days, 365);
+            
+            const baselinePrice = {
+                "2SRW": 220,
+                "US White": 235,
+                "HRW 11": 245,
+                "HRW 12": 258,
+                "HRS 13.5": 290,
+                "Argentine 12": 230,
+                "APW": 240,
+                "ASW": 225,
+                "French 11.5": 242,
+                "German 12.5": 252,
+                "Black Sea Milling": 210
+            };
+            
+            // Regional factors (origins with same region will be somewhat correlated)
+            const regionMap = {
+                "2SRW": "North America",
+                "US White": "North America",
+                "HRW 11": "North America",
+                "HRW 12": "North America",
+                "HRS 13.5": "North America",
+                "Argentine 12": "South America",
+                "APW": "Oceania",
+                "ASW": "Oceania",
+                "French 11.5": "Europe",
+                "German 12.5": "Europe",
+                "Black Sea Milling": "Black Sea"
+            };
+            
+            // Country and location info for each origin
+            const countryMap = {
+                "2SRW": "USA",
+                "US White": "USA",
+                "HRW 11": "USA",
+                "HRW 12": "USA",
+                "HRS 13.5": "USA",
+                "Argentine 12": "Argentina",
+                "APW": "Australia",
+                "ASW": "Australia",
+                "French 11.5": "France",
+                "German 12.5": "Germany",
+                "Black Sea Milling": "Russia/Ukraine"
+            };
+            
+            const locationMap = {
+                "2SRW": "Gulf",
+                "US White": "PNW",
+                "HRW 11": "Gulf",
+                "HRW 12": "Gulf",
+                "HRS 13.5": "PNW",
+                "Argentine 12": "Up River",
+                "APW": "Port Kembla",
+                "ASW": "Port Kembla",
+                "French 11.5": "Rouen",
+                "German 12.5": "Hamburg",
+                "Black Sea Milling": "Black Sea"
+            };
+            
+            // Create region-specific events (affects all wheat in a region)
+            const regionEvents = {
+                "North America": [
+                    { day: Math.floor(days * 0.15), impact: 0.07, duration: 20, description: "Drought concerns in US Plains" },
+                    { day: Math.floor(days * 0.45), impact: -0.05, duration: 25, description: "Better than expected US harvest" },
+                    { day: Math.floor(days * 0.75), impact: 0.04, duration: 15, description: "Strong export demand" }
+                ],
+                "South America": [
+                    { day: Math.floor(days * 0.2), impact: 0.09, duration: 20, description: "Argentine truckers strike" },
+                    { day: Math.floor(days * 0.5), impact: -0.06, duration: 30, description: "Excellent weather in Argentina" },
+                    { day: Math.floor(days * 0.8), impact: 0.08, duration: 25, description: "Export tax concerns" }
+                ],
+                "Oceania": [
+                    { day: Math.floor(days * 0.25), impact: 0.10, duration: 35, description: "Australian drought" },
+                    { day: Math.floor(days * 0.55), impact: -0.07, duration: 20, description: "Favorable Australian rains" },
+                    { day: Math.floor(days * 0.85), impact: 0.05, duration: 15, description: "Strong Asian demand" }
+                ],
+                "Europe": [
+                    { day: Math.floor(days * 0.1), impact: 0.06, duration: 25, description: "European heat wave" },
+                    { day: Math.floor(days * 0.4), impact: -0.04, duration: 15, description: "EU harvest upgrades" },
+                    { day: Math.floor(days * 0.7), impact: 0.07, duration: 30, description: "Reduced EU exports" }
+                ],
+                "Black Sea": [
+                    { day: Math.floor(days * 0.3), impact: 0.12, duration: 40, description: "Black Sea shipping concerns" },
+                    { day: Math.floor(days * 0.6), impact: -0.08, duration: 20, description: "Large Russian harvest" },
+                    { day: Math.floor(days * 0.9), impact: 0.09, duration: 25, description: "Export quotas implemented" }
+                ]
+            };
+            
+            // Global events affecting all wheat origins (but to varying degrees)
+            const globalEvents = [
+                { day: Math.floor(days * 0.05), impact: 0.02, duration: 30, description: "Fund buying" },
+                { day: Math.floor(days * 0.35), impact: -0.03, duration: 20, description: "Bearish USDA report" },
+                { day: Math.floor(days * 0.65), impact: 0.04, duration: 25, description: "Stock market crash" },
+                { day: Math.floor(days * 0.95), impact: -0.02, duration: 15, description: "Global economic outlook" }
+            ];
+            
+            // Origin-specific events (affects only one origin type)
+            const originEvents = {};
+            origins.forEach(origin => {
+                originEvents[origin] = [
+                    { 
+                        day: Math.floor(Math.random() * days * 0.4), 
+                        impact: (Math.random() * 0.1 + 0.05) * (Math.random() < 0.5 ? -1 : 1), 
+                        duration: Math.floor(Math.random() * 15) + 5,
+                        description: "Origin-specific event" 
+                    },
+                    { 
+                        day: Math.floor(Math.random() * days * 0.4 + days * 0.5), 
+                        impact: (Math.random() * 0.1 + 0.05) * (Math.random() < 0.5 ? -1 : 1), 
+                        duration: Math.floor(Math.random() * 15) + 5,
+                        description: "Origin-specific event" 
+                    }
+                ];
+            });
+            
+            // Create price paths with memory (each day affected by previous day)
+            const pricePaths = {};
+            origins.forEach(origin => {
+                pricePaths[origin] = [];
+                let currentPrice = baselinePrice[origin];
+                
+                // Different volatility for different origins
+                const baseVolatility = 0.005 + Math.random() * 0.01;
+                
+                for (let i = 0; i < days; i++) {
+                    // 1. Daily random walk with origin-specific volatility
+                    const dailyVolatility = baseVolatility + (Math.random() * 0.003);
+                    const randomWalk = (Math.random() - 0.5) * 2 * dailyVolatility * currentPrice;
+                    
+                    // 2. Trend component (unique trend for each origin)
+                    const originTrendFactor = 0.7 + Math.random() * 0.6; // 0.7 to 1.3 multiplier
+                    const trendComponent = (i / days) * 20 * originTrendFactor; 
+                    
+                    // 3. Seasonal component (yearly cycle, different phase for each origin)
+                    const originPhaseShift = Math.random() * 2 * Math.PI; // Different phase for each origin
+                    const yearFraction = (i % 365) / 365;
+                    const seasonalComponent = Math.sin(yearFraction * 2 * Math.PI + originPhaseShift) * (10 + Math.random() * 10);
+                    
+                    // 4. Market events impact
+                    let eventImpact = 0;
+                    
+                    // 4a. Region-specific events
+                    const region = regionMap[origin];
+                    if (regionEvents[region]) {
+                        regionEvents[region].forEach(event => {
+                            if (i >= event.day && i < event.day + event.duration) {
+                                // Effect is strongest in the middle of the event
+                                const normalizedDay = (i - event.day) / event.duration;
+                                const eventIntensity = Math.sin(normalizedDay * Math.PI) * (1 + (Math.random() * 0.3 - 0.15));
+                                eventImpact += event.impact * baselinePrice[origin] * eventIntensity;
+                            }
+                        });
+                    }
+                    
+                    // 4b. Origin-specific events (stronger effect)
+                    if (originEvents[origin]) {
+                        originEvents[origin].forEach(event => {
+                            if (i >= event.day && i < event.day + event.duration) {
+                                const normalizedDay = (i - event.day) / event.duration;
+                                const eventIntensity = Math.sin(normalizedDay * Math.PI);
+                                eventImpact += event.impact * baselinePrice[origin] * eventIntensity * 1.5;
+                            }
+                        });
+                    }
+                    
+                    // 4c. Global events (weaker effect, varies by origin)
+                    globalEvents.forEach(event => {
+                        if (i >= event.day && i < event.day + event.duration) {
+                            const normalizedDay = (i - event.day) / event.duration;
+                            const eventIntensity = Math.sin(normalizedDay * Math.PI);
+                            const originSensitivity = 0.7 + Math.random() * 0.6; // Different sensitivity for each origin
+                            eventImpact += event.impact * baselinePrice[origin] * eventIntensity * originSensitivity;
+                        }
+                    });
+                    
+                    // 5. Mean reversion component (prices tend to return to baseline over time)
+                    const meanReversionStrength = 0.002; // 0.2% reversion per day
+                    const meanReversionComponent = (baselinePrice[origin] - currentPrice) * meanReversionStrength;
+                    
+                    // 6. Previous day momentum (prices tend to continue in same direction)
+                    let momentumComponent = 0;
+                    if (i > 0) {
+                        const previousDayChange = pricePaths[origin][i-1] - (i > 1 ? pricePaths[origin][i-2] : pricePaths[origin][i-1]);
+                        momentumComponent = previousDayChange * (0.2 + Math.random() * 0.2); // 20-40% momentum carry
+                    }
+                    
+                    // Calculate new price with all components
+                    const newPrice = currentPrice + randomWalk + trendComponent/days + seasonalComponent/100 + 
+                                    eventImpact + meanReversionComponent + momentumComponent;
+                    
+                    // Ensure price stays positive and has some minimum value
+                    currentPrice = Math.max(newPrice, baselinePrice[origin] * 0.6);
+                    
+                    // Add occasional price gaps (sudden jumps) with low probability
+                    if (Math.random() < 0.002) { // 0.2% chance of price gap each day
+                        const gapDirection = Math.random() < 0.5 ? -1 : 1;
+                        const gapSize = (0.01 + Math.random() * 0.03) * currentPrice * gapDirection; // 1-4% gap
+                        currentPrice += gapSize;
+                    }
+                    
+                    // Round price to nearest cent
+                    pricePaths[origin].push(Math.round(currentPrice * 100) / 100);
+                }
+            });
+            
+            // Convert price paths to data points
+            for (let i = 0; i < days; i++) {
+                const currentDate = new Date(endDate);
+                currentDate.setDate(endDate.getDate() - (days - i));
+                const dateString = currentDate.toISOString().split('T')[0];
+                
+                origins.forEach(origin => {
+                    data.push({
+                        Date: dateString,
+                        Origin: origin,
+                        Price: pricePaths[origin][i],
+                        Country: countryMap[origin],
+                        Location: locationMap[origin]
+                    });
+                });
+            }
+            
+            return data;
+        }
+    </script>
+</body>
+</html> 
